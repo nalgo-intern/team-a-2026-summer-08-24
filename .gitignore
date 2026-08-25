@@ -7,8 +7,8 @@ __pycache__/
 .Python
 
 # Virtual environments
-.venv/
-venv/
+/.venv/
+/venv/
 env/
 ENV/
 
