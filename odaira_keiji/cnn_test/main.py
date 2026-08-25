@@ -12,7 +12,7 @@ from PIL import Image
 MODEL_PATH = "model.keras"
 
 # 判定する画像
-IMAGE_PATH = "input.jpg"
+IMAGE_PATH = "input.jpg"  # 拡張子に応じて変更
 
 # 判定結果を保存するファイル
 RESULT_PATH = "result.txt"
@@ -21,10 +21,10 @@ RESULT_PATH = "result.txt"
 IMAGE_SIZE = (224, 224)
 
 # クラス名
-# ※ 学習時のクラス番号に合わせて変更してください
+# 学習時のクラス名・順番に合わせる
 CLASS_NAMES = [
     "fresh",
-    "not_fresh"
+    "rotten"
 ]
 
 
@@ -62,22 +62,33 @@ def preprocess_image(image_path):
     # RGB画像として読み込み
     image = Image.open(image_path).convert("RGB")
 
-    # モデルの入力サイズに変更
+    print(f"元画像サイズ: {image.size}")
+
+    # 224×224へリサイズ
+    # 縦横比は維持しない
     image = image.resize(IMAGE_SIZE)
 
+    print(f"リサイズ後: {image.size}")
+
     # NumPy配列へ変換
-    image_array = np.array(image, dtype=np.float32)
+    image_array = np.array(
+        image,
+        dtype=np.float32
+    )
 
     # 0～1に正規化
     image_array = image_array / 255.0
 
     # バッチ次元を追加
     #
-    # 224 × 224 × 3
+    # (224, 224, 3)
     #       ↓
-    # 1 × 224 × 224 × 3
+    # (1, 224, 224, 3)
     #
-    image_array = np.expand_dims(image_array, axis=0)
+    image_array = np.expand_dims(
+        image_array,
+        axis=0
+    )
 
     return image_array
 
@@ -89,46 +100,87 @@ def preprocess_image(image_path):
 def predict(model, image):
     print("判定しています...")
 
-    # 推論
-    prediction = model.predict(image, verbose=0)
+    # モデルによる推論
+    prediction = model.predict(
+        image,
+        verbose=0
+    )
 
-    # 出力結果
+    # 1枚目の画像の出力を取得
     probabilities = prediction[0]
 
+    # モデルの生の出力を表示
+    print()
+    print("=== モデルの生の出力 ===")
+
+    for i, probability in enumerate(probabilities):
+        print(
+            f"{i}: {float(probability):.10f}"
+        )
+
     # 最も確率が高いクラス
-    class_index = int(np.argmax(probabilities))
+    class_index = int(
+        np.argmax(probabilities)
+    )
 
     # クラス名
     class_name = CLASS_NAMES[class_index]
 
     # 信頼度
-    confidence = float(probabilities[class_index])
+    confidence = float(
+        probabilities[class_index]
+    )
 
-    return class_name, confidence, probabilities
+    return (
+        class_name,
+        confidence,
+        probabilities
+    )
 
 
 # ============================================================
 # 結果保存
 # ============================================================
 
-def save_result(class_name, confidence, probabilities):
-    print(f"結果を保存しています: {RESULT_PATH}")
+def save_result(
+    class_name,
+    confidence,
+    probabilities
+):
+    print(
+        f"結果を保存しています: {RESULT_PATH}"
+    )
 
-    with open(RESULT_PATH, "w", encoding="utf-8") as f:
+    with open(
+        RESULT_PATH,
+        "w",
+        encoding="utf-8"
+    ) as f:
 
+        # 判定結果
         f.write("=== 判定結果 ===\n")
-        f.write(f"判定: {class_name}\n")
-        f.write(f"信頼度: {confidence:.4f}\n")
+        f.write(
+            f"判定: {class_name}\n"
+        )
+        f.write(
+            f"信頼度: {confidence:.4f}\n"
+        )
+        f.write(
+            f"信頼度: {confidence * 100:.2f}%\n"
+        )
 
+        # クラス別確率
         f.write("\n=== クラス別確率 ===\n")
 
-        for i, probability in enumerate(probabilities):
+        for i, probability in enumerate(
+            probabilities
+        ):
             f.write(
                 f"{CLASS_NAMES[i]}: "
-                f"{float(probability):.4f}\n"
+                f"{float(probability):.10f}\n"
             )
 
-    print("結果を保存しました")
+    print("result.txtを保存しました")
 
 
 # ============================================================
@@ -143,37 +195,74 @@ def main():
 
     try:
 
+        # ----------------------------------------------------
         # 1. モデル読み込み
+        # ----------------------------------------------------
+
         model = load_model()
 
-        # 2. 画像読み込み・前処理
-        image = preprocess_image(IMAGE_PATH)
 
+        # ----------------------------------------------------
+        # 2. 画像読み込み・前処理
+        # ----------------------------------------------------
+
+        image = preprocess_image(
+            IMAGE_PATH
+        )
+
+
+        # ----------------------------------------------------
         # 3. 判定
-        class_name, confidence, probabilities = predict(
+        # ----------------------------------------------------
+
+        (
+            class_name,
+            confidence,
+            probabilities
+        ) = predict(
             model,
             image
         )
 
-        # 4. 結果表示
+
+        # ----------------------------------------------------
+        # 4. 判定結果表示
+        # ----------------------------------------------------
+
         print()
         print("========================================")
         print("判定結果")
         print("========================================")
-        print(f"判定      : {class_name}")
-        print(f"信頼度    : {confidence:.4f}")
-        print(f"信頼度    : {confidence * 100:.2f}%")
+
+        print(
+            f"判定      : {class_name}"
+        )
+
+        print(
+            f"信頼度    : {confidence:.10f}"
+        )
+
+        print(
+            f"信頼度    : {confidence * 100:.6f}%"
+        )
+
         print("========================================")
 
+
+        # ----------------------------------------------------
         # 5. result.txtへ保存
+        # ----------------------------------------------------
+
         save_result(
             class_name,
             confidence,
             probabilities
         )
 
+
         print()
         print("処理が完了しました。")
+
 
     except Exception as e:
 
@@ -181,11 +270,14 @@ def main():
         print("========================================")
         print("エラーが発生しました")
         print("========================================")
-        print(e)
+
+        print(
+            f"{type(e).__name__}: {e}"
+        )
 
 
 # ============================================================
-# 実行
+# プログラム開始
 # ============================================================
 
 if __name__ == "__main__":
