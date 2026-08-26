@@ -1,0 +1,7 @@
+.venv/
+.uv-cache/
+.matplotlib/
+__pycache__/
+*.pyc
+best_freshness_model.keras
+test.jpg

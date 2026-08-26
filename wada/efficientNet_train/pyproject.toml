@@ -1,0 +1,15 @@
+[project]
+name = "efficientnet-train"
+version = "0.1.0"
+description = "EfficientNetB0による食品鮮度判定モデルの学習"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "kagglehub>=0.3.12",
+    "matplotlib>=3.9,<4",
+    "numpy>=1.26,<2.2",
+    "pillow>=10,<12",
+    "tensorflow>=2.16,<2.21",
+]
+
+[tool.uv]
+package = false
