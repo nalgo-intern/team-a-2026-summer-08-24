@@ -19,6 +19,8 @@ input[type=file] { display: block; width: 100%; margin-top: 8px; }
 button { border: 0; border-radius: 10px; padding: 13px 20px; color: #fff; background: #2563eb; font-size: 1rem; cursor: pointer; }
 .message { padding: 14px; border-radius: 10px; margin: 16px 0; }
 .error { color: #9b1c1c; background: #fee2e2; }
+.warning { color: #854d0e; background: #fef3c7; }
+.decision-detail { color: #667085; font-size: .9rem; }
 .result-section { margin-top: 28px; }
 .result-card { border-left: 8px solid #16a34a; margin-bottom: 20px; }
 .result-card.rotten { border-left-color: #dc2626; }

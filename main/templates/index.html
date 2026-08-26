@@ -45,6 +45,10 @@
           <p>Fresh: {{ "%.2f"|format(result.probabilities.Fresh * 100) }}%</p>
           <p>Rotten: {{ "%.2f"|format(result.probabilities.Rotten * 100) }}%</p>
         </div>
+        {% if result.warning %}
+          <div class="message warning">{{ result.warning }}</div>
+        {% endif %}
+        <p class="decision-detail">元画像: {{ result.original_quality }}{% if result.crop_quality %} / 切り出し画像: {{ result.crop_quality }}{% endif %}</p>
         <div class="images">
           <figure><img src="{{ result.original_url }}" alt="元画像"><figcaption>元画像</figcaption></figure>
           <figure><img src="{{ result.foreground_url }}" alt="前景抽出結果"><figcaption>前景抽出</figcaption></figure>

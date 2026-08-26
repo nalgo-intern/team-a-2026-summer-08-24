@@ -21,7 +21,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 CNN_MODEL_PATH = Path(
     os.getenv(
         "CNN_MODEL_PATH",
-        Path(__file__).resolve().parent / "model" / "best_freshness_model_odaira.keras",
+        Path(__file__).resolve().parent / "model" / "best_freshness_model_wada_best.keras",
     )
 )
 BIREFNET_MODEL_NAME = os.getenv("BIREFNET_MODEL_NAME", "ZhengPeng7/BiRefNet")
@@ -90,6 +90,19 @@ def largest_component(mask: np.ndarray) -> tuple[np.ndarray, tuple[int, int, int
     return component_mask, (int(x), int(y), int(x + width), int(y + height))
 
 
+def expand_bbox(bbox: tuple[int, int, int, int], image_size: tuple[int, int], padding_ratio: float = 0.12) -> tuple[int, int, int, int]:
+    x1, y1, x2, y2 = bbox
+    width, height = x2 - x1, y2 - y1
+    image_width, image_height = image_size
+    padding_x, padding_y = int(width * padding_ratio), int(height * padding_ratio)
+    return (
+        max(0, x1 - padding_x),
+        max(0, y1 - padding_y),
+        min(image_width, x2 + padding_x),
+        min(image_height, y2 + padding_y),
+    )
+
+
 def make_data_url(image: Image.Image, image_format: str = "PNG") -> str:
     buffer = io.BytesIO()
     image.save(buffer, format=image_format)
@@ -138,15 +151,38 @@ def analyze(image: Image.Image) -> dict[str, object]:
     load_models()
     image = image.convert("RGB")
     foreground, bbox = run_birefnet(image)
+    original_quality, original_confidence, original_probabilities = run_cnn(image)
     if bbox is None:
-        raise ValueError("食品を検出できませんでした。食品全体が写った画像を使用してください。")
-
-    crop = image.crop(bbox)
-    quality, confidence, probabilities = run_cnn(crop)
+        quality = original_quality
+        confidence = original_confidence
+        probabilities = original_probabilities
+        crop = image
+        crop_quality = None
+        warning = "食品を切り出せなかったため、元画像で判定しました。"
+        display_bbox = None
+    else:
+        display_bbox = expand_bbox(bbox, image.size)
+        crop = image.crop(display_bbox)
+        crop_quality, crop_confidence, crop_probabilities = run_cnn(crop)
+        quality = "Rotten" if "Rotten" in (original_quality, crop_quality) else "Fresh"
+        combined_probabilities = {
+            name: max(original_probabilities[name], crop_probabilities[name])
+            for name in QUALITY_CLASSES
+        }
+        probability_total = sum(combined_probabilities.values())
+        probabilities = {
+            name: value / probability_total
+            for name, value in combined_probabilities.items()
+        }
+        confidence = probabilities[quality]
+        warning = None if original_quality == crop_quality else (
+            f"元画像判定（{original_quality}）と切り出し判定（{crop_quality}）が異なるため、安全側に判定しました。"
+        )
 
     boxed = image.copy()
     draw = ImageDraw.Draw(boxed)
-    draw.rectangle(bbox, outline=(220, 38, 38), width=max(3, min(image.size) // 100))
+    if display_bbox is not None:
+        draw.rectangle(display_bbox, outline=(220, 38, 38), width=max(3, min(image.size) // 100))
 
     return {
         "original_url": make_data_url(image),
@@ -156,7 +192,10 @@ def analyze(image: Image.Image) -> dict[str, object]:
         "quality": quality,
         "confidence": confidence,
         "probabilities": probabilities,
-        "bbox": bbox,
+        "bbox": display_bbox,
+        "original_quality": original_quality,
+        "crop_quality": crop_quality,
+        "warning": warning,
     }
 
 
