@@ -1,0 +1,8 @@
+.env
+.venv/
+data/food_freshness_evaluation/dataset/
+data/food_freshness_evaluation/cnn_crops
+data/food_freshness_evaluation/birefnet_foregrounds
+data/food_freshness_evaluation/result_images
+
+__pycache__/

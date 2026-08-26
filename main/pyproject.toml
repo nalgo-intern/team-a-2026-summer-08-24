@@ -1,0 +1,18 @@
+[project]
+name = "food-quality-flask"
+version = "0.1.0"
+description = "BiRefNetとCNNによる食品品質判定Flaskアプリ"
+requires-python = ">=3.12"
+dependencies = [
+    "flask>=3.1.0",
+    "einops>=0.8.2",
+    "kornia>=0.8.3",
+    "tensorflow>=2.21.0",
+    "timm>=1.0.28",
+    "torch>=2.13.0",
+    "torchvision>=0.28.0",
+    "transformers>=5.15.1",
+    "opencv-python>=5.0.0.93",
+    "pillow>=12.3.0",
+    "numpy>=2.5.2",
+]
