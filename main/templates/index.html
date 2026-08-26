@@ -3,139 +3,57 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>食品の品質判定</title>
+  <title>Food Vision | 食品の品質判定</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <main class="container">
-    <h1>食品の品質判定</h1>
-    <p class="description">画像をアップロードするか、パソコンのWebカメラ・スマートフォンのカメラで撮影してください。</p>
+  <main class="app-shell">
+    <header class="hero">
+      <div class="brand-mark" aria-hidden="true">FV</div>
+      <div>
+        <p class="eyebrow">FOOD VISION</p>
+        <h1>食品の品質判定</h1>
+        <p class="hero-copy">写真から食材を見つけて、Fresh / Rotten をわかりやすく判定します。</p>
+      </div>
+      <div class="status-chip"><span class="status-dot"></span> AI 判定システム</div>
+    </header>
 
-    {% if error %}
-      <div class="message error">{{ error }}</div>
-    {% endif %}
+    {% if error %}<div class="message error" role="alert"><span>!</span>{{ error }}</div>{% endif %}
 
-    <form action="{{ url_for('predict') }}" method="post" enctype="multipart/form-data" class="upload-form" id="predict-form">
-      <label class="file-picker">
-        <span>画像ファイルを選択</span>
-        <input type="file" name="image" id="file-input" accept="image/jpeg,image/png,image/webp">
-      </label>
-      <section class="camera-panel">
-        <h2>カメラで撮影</h2>
-        <div class="camera-actions">
-          <button type="button" id="start-camera">Webカメラを起動</button>
-          <button type="button" id="mobile-camera" class="secondary-button">スマホで撮影</button>
+    <section class="workspace" aria-label="画像入力">
+      <form id="predict-form" class="panel input-panel" action="{{ url_for('predict') }}" method="post" enctype="multipart/form-data">
+        <div class="section-heading"><span class="step-number">01</span><div><p class="eyebrow">IMAGE INPUT</p><h2>判定する画像を選ぶ</h2></div></div>
+        <label class="dropzone" for="image-file">
+          <span class="dropzone-icon" aria-hidden="true">↑</span><span class="dropzone-title">画像をアップロード</span><span class="dropzone-note">JPG / PNG / WEBP · 10MBまで</span>
+          <input id="image-file" name="image" type="file" accept="image/*">
+        </label>
+        <p id="filename" class="filename">画像が選択されていません</p>
+        <div class="divider"><span>または</span></div>
+        <div class="camera-panel">
+          <div class="camera-heading"><span class="camera-icon" aria-hidden="true">◎</span><div><h3>カメラで撮影</h3><p>パソコンはWebカメラ、スマホは端末カメラを使えます。</p></div></div>
+          <div class="camera-actions"><button id="start-camera" class="button button-secondary" type="button">Webカメラを起動</button><label class="button button-ghost mobile-camera-label" for="mobile-camera">スマホで撮影</label><input id="mobile-camera" type="file" accept="image/*" capture="environment" hidden></div>
+          <div id="camera-frame" class="camera-frame" hidden><video id="camera-video" autoplay playsinline muted></video><button id="take-photo" class="shutter-button" type="button" aria-label="写真を撮影"><span></span></button></div>
+          <p id="camera-status" class="camera-status" role="status">撮影方法を選択してください</p>
         </div>
-        <video id="camera-video" autoplay playsinline muted hidden></video>
-        <button type="button" id="take-photo" class="shutter-button" disabled hidden>● 撮影する</button>
-        <canvas id="camera-canvas" hidden></canvas>
-        <input type="file" name="image" id="camera-file-input" accept="image/*" capture="environment" hidden>
-        <p id="camera-status" class="camera-status">パソコンではWebカメラ、スマートフォンでは端末のカメラを使用できます。</p>
-      </section>
-      <p id="filename" class="filename">選択された画像はありません</p>
-      <button type="submit">判定する</button>
-    </form>
+        <div id="selected-preview-wrap" class="selected-preview" hidden><div class="preview-heading"><span>選択中の画像</span><span class="preview-check">✓ 準備完了</span></div><img id="selected-preview" alt="判定対象のプレビュー"></div>
+        <button id="submit-button" class="button button-primary submit-button" type="submit"><span class="button-label">この画像を判定する</span><span class="button-loader" aria-hidden="true"></span></button>
+      </form>
 
-    {% if result %}
-      <section class="result-section">
-        <h2>判定結果</h2>
-        <div class="result-card {% if result.quality == 'Fresh' %}fresh{% else %}rotten{% endif %}">
-          <p class="quality">{{ result.quality }}</p>
-          <p>信頼度: {{ "%.2f"|format(result.confidence * 100) }}%</p>
-          <p>Fresh: {{ "%.2f"|format(result.probabilities.Fresh * 100) }}%</p>
-          <p>Rotten: {{ "%.2f"|format(result.probabilities.Rotten * 100) }}%</p>
-        </div>
-        {% if result.warning %}
-          <div class="message warning">{{ result.warning }}</div>
-        {% endif %}
-        <p class="decision-detail">元画像: {{ result.original_quality }}{% if result.crop_quality %} / 切り出し画像: {{ result.crop_quality }}{% endif %}</p>
-        <div class="images">
-          <figure><img src="{{ result.original_url }}" alt="元画像"><figcaption>元画像</figcaption></figure>
-          <figure><img src="{{ result.foreground_url }}" alt="前景抽出結果"><figcaption>前景抽出</figcaption></figure>
-          <figure><img src="{{ result.boxed_url }}" alt="検出範囲"><figcaption>検出範囲</figcaption></figure>
-          <figure><img src="{{ result.crop_url }}" alt="判定対象"><figcaption>判定対象</figcaption></figure>
-        </div>
-      </section>
-    {% endif %}
+      <aside class="panel guide-panel"><div class="section-heading compact"><span class="step-number pale">02</span><div><p class="eyebrow">HOW IT WORKS</p><h2>判定の流れ</h2></div></div><div class="flow-list"><div class="flow-item"><span>01</span><div><strong>食材を検出</strong><p>画像の中から食材の位置を見つけます。</p></div></div><div class="flow-item"><span>02</span><div><strong>背景を除去</strong><p>BiRefNetで食材だけを切り出します。</p></div></div><div class="flow-item"><span>03</span><div><strong>品質を判定</strong><p>CNNがFresh / Rottenを判定します。</p></div></div></div><div class="tip-card"><span aria-hidden="true">✦</span><p>食材が明るく写り、全体が見える写真ほど安定した判定につながります。</p></div></aside>
+    </section>
+
+    {% if result %}<section class="result-section" aria-live="polite"><div class="section-heading result-heading"><span class="step-number">03</span><div><p class="eyebrow">ANALYSIS RESULT</p><h2>判定結果</h2></div></div><article class="result-card {{ 'rotten' if result.quality == 'Rotten' else 'fresh' }}"><div class="result-summary"><div><p class="result-kicker">QUALITY STATUS</p><p class="quality">{{ 'Fresh（新鮮）' if result.quality == 'Fresh' else 'Rotten（傷みあり）' }}</p><p class="result-caption">この画像に写る食材の品質判定です。</p></div><div class="confidence"><span>信頼度</span><strong>{{ '%.1f'|format(result.confidence * 100) }}<small>%</small></strong></div></div><div class="probabilities"><div class="probability-row"><span>Fresh</span><div class="bar"><i style="width: {{ result.probabilities.Fresh * 100 }}%"></i></div><strong>{{ '%.1f'|format(result.probabilities.Fresh * 100) }}%</strong></div><div class="probability-row rotten-row"><span>Rotten</span><div class="bar"><i style="width: {{ result.probabilities.Rotten * 100 }}%"></i></div><strong>{{ '%.1f'|format(result.probabilities.Rotten * 100) }}%</strong></div></div></article>{% if result.warning %}<div class="message warning" role="status"><span>i</span>{{ result.warning }}</div>{% endif %}<div class="decision-detail"><strong>判定の内訳</strong><span>元画像：{{ result.original_quality }}</span><span>切り出し画像：{{ result.crop_quality }}</span></div><div class="images"><figure><img src="data:image/jpeg;base64,{{ result.original }}" alt="入力画像"><figcaption>入力画像</figcaption></figure><figure><img src="data:image/png;base64,{{ result.foreground }}" alt="背景除去結果"><figcaption>背景除去</figcaption></figure><figure><img src="data:image/jpeg;base64,{{ result.boxed }}" alt="検出結果"><figcaption>食材の検出</figcaption></figure><figure><img src="data:image/jpeg;base64,{{ result.crop }}" alt="切り出し画像"><figcaption>CNN判定画像</figcaption></figure></div></section>{% endif %}
   </main>
   <script>
-    const fileInput = document.getElementById('file-input');
-    const cameraFileInput = document.getElementById('camera-file-input');
-    const filename = document.getElementById('filename');
-    const video = document.getElementById('camera-video');
-    const canvas = document.getElementById('camera-canvas');
-    const startCameraButton = document.getElementById('start-camera');
-    const mobileCameraButton = document.getElementById('mobile-camera');
-    const takePhotoButton = document.getElementById('take-photo');
-    const cameraStatus = document.getElementById('camera-status');
+    const form = document.getElementById('predict-form'), fileInput = document.getElementById('image-file'), mobileInput = document.getElementById('mobile-camera'), filename = document.getElementById('filename'), previewWrap = document.getElementById('selected-preview-wrap'), preview = document.getElementById('selected-preview'), cameraFrame = document.getElementById('camera-frame'), cameraVideo = document.getElementById('camera-video'), startCamera = document.getElementById('start-camera'), takePhoto = document.getElementById('take-photo'), cameraStatus = document.getElementById('camera-status'), submitButton = document.getElementById('submit-button');
     let cameraStream = null;
-
-    function showFilename(input) {
-      if (input.files.length > 0) filename.textContent = input.files[0].name;
-    }
-
-    fileInput.addEventListener('change', () => {
-      cameraFileInput.value = '';
-      showFilename(fileInput);
-    });
-
-    cameraFileInput.addEventListener('change', () => {
-      fileInput.value = '';
-      showFilename(cameraFileInput);
-      cameraStatus.textContent = '撮影した写真を選択しました。';
-    });
-
-    mobileCameraButton.addEventListener('click', () => cameraFileInput.click());
-
-    startCameraButton.addEventListener('click', async () => {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        cameraStatus.textContent = 'このブラウザではWebカメラを利用できません。スマホで撮影を使用してください。';
-        return;
-      }
-      try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
-          audio: false,
-        });
-        video.srcObject = cameraStream;
-        video.hidden = false;
-        takePhotoButton.hidden = false;
-        takePhotoButton.disabled = false;
-        startCameraButton.textContent = 'Webカメラを停止';
-        cameraStatus.textContent = '映像を確認して「撮影する」を押してください。';
-      } catch (error) {
-        cameraStatus.textContent = 'Webカメラを起動できませんでした。カメラの使用を許可してください。';
-      }
-    });
-
-    takePhotoButton.addEventListener('click', () => {
-      if (!cameraStream || video.videoWidth === 0) return;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => {
-        const file = new File([blob], 'webcam-photo.jpg', { type: 'image/jpeg' });
-        const transfer = new DataTransfer();
-        transfer.items.add(file);
-        cameraFileInput.files = transfer.files;
-        fileInput.value = '';
-        showFilename(cameraFileInput);
-        cameraStatus.textContent = '写真を撮影しました。この写真で判定できます。';
-        stopCamera();
-      }, 'image/jpeg', 0.95);
-    });
-
-    function stopCamera() {
-      if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
-      cameraStream = null;
-      video.srcObject = null;
-      video.hidden = true;
-      takePhotoButton.hidden = true;
-      takePhotoButton.disabled = true;
-      startCameraButton.textContent = 'Webカメラを起動';
-    }
-
-    window.addEventListener('beforeunload', stopCamera);
+    function showPreview(file) { if (!file) return; filename.textContent = file.name || '撮影した画像'; preview.src = URL.createObjectURL(file); previewWrap.hidden = false; }
+    fileInput.addEventListener('change', () => showPreview(fileInput.files[0]));
+    mobileInput.addEventListener('change', () => { if (!mobileInput.files[0]) return; const transfer = new DataTransfer(); transfer.items.add(mobileInput.files[0]); fileInput.files = transfer.files; showPreview(fileInput.files[0]); cameraStatus.textContent = '撮影画像を選択中です'; });
+    startCamera.addEventListener('click', async () => { if (!navigator.mediaDevices?.getUserMedia) { cameraStatus.textContent = 'このブラウザではWebカメラを利用できません。スマホで撮影をお試しください。'; return; } try { cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); cameraVideo.srcObject = cameraStream; cameraFrame.hidden = false; startCamera.textContent = 'Webカメラを再起動'; cameraStatus.textContent = '被写体を中央に合わせて、シャッターを押してください'; } catch (error) { cameraStatus.textContent = 'カメラを起動できません。ブラウザのカメラ許可を確認してください。'; } });
+    takePhoto.addEventListener('click', () => { if (!cameraStream || !cameraVideo.videoWidth) return; const canvas = document.createElement('canvas'); canvas.width = cameraVideo.videoWidth; canvas.height = cameraVideo.videoHeight; canvas.getContext('2d').drawImage(cameraVideo, 0, 0); canvas.toBlob(blob => { const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' }); const transfer = new DataTransfer(); transfer.items.add(file); fileInput.files = transfer.files; showPreview(file); cameraStatus.textContent = '撮影しました。このまま判定できます。'; }, 'image/jpeg', 0.92); });
+    form.addEventListener('submit', () => { submitButton.disabled = true; submitButton.classList.add('is-loading'); submitButton.querySelector('.button-label').textContent = '画像を解析しています…'; });
+    window.addEventListener('beforeunload', () => cameraStream?.getTracks().forEach(track => track.stop()));
   </script>
 </body>
 </html>
