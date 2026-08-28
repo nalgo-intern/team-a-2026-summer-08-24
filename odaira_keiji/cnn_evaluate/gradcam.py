@@ -11,16 +11,16 @@ import matplotlib.pyplot as plt
 
 MODEL_PATH = "model.keras"
 
-INPUT_IMAGE_BASE = "input"
+INPUT_DIR = "input"
 
-OUTPUT_IMAGE = "input_gradcam.jpg"
+OUTPUT_DIR = "output"
 
 CLASS_NAMES = [
-    "Fresh",
-    "Rotten"
+    "fresh",
+    "rotten"
 ]
 
-IMAGE_EXTENSIONS = [
+IMAGE_EXTENSIONS = (
     ".jpg",
     ".jpeg",
     ".png",
@@ -28,23 +28,7 @@ IMAGE_EXTENSIONS = [
     ".webp",
     ".tif",
     ".tiff"
-]
-
-
-# ============================================================
-# 入力画像を探す
-# ============================================================
-
-def find_input_image():
-
-    for ext in IMAGE_EXTENSIONS:
-
-        path = INPUT_IMAGE_BASE + ext
-
-        if os.path.exists(path):
-            return path
-
-    return None
+)
 
 
 # ============================================================
@@ -68,7 +52,7 @@ print()
 
 
 # ============================================================
-# 入力サイズ
+# 入力サイズ取得
 # ============================================================
 
 input_shape = model.input_shape
@@ -89,7 +73,7 @@ print()
 
 
 # ============================================================
-# EfficientNetB0を取得
+# EfficientNetB0取得
 # ============================================================
 
 efficientnet = model.get_layer(
@@ -129,12 +113,18 @@ print()
 
 
 # ============================================================
-# EfficientNet内部の
-# 「top_conv → EfficientNet出力」を作る
+# EfficientNetのtop_convまで取得するモデル
 # ============================================================
 
-# top_convの出力からEfficientNetの最終出力までを
-# 別のFunctional Modelとして構築する。
+conv_model = tf.keras.models.Model(
+    inputs=efficientnet.input,
+    outputs=last_conv_layer.output
+)
+
+
+# ============================================================
+# EfficientNetのtop_conv以降
+# ============================================================
 
 efficientnet_tail = tf.keras.models.Model(
     inputs=last_conv_layer.output,
@@ -143,19 +133,14 @@ efficientnet_tail = tf.keras.models.Model(
 
 
 # ============================================================
-# EfficientNetの出力から
-# 最終分類までを作る
+# 分類層取得
 # ============================================================
-
-# model.layersの中からefficientnetb0より後ろにある
-# レイヤーを取得する。
 
 efficientnet_index = None
 
 for i, layer in enumerate(model.layers):
 
     if layer.name == "efficientnetb0":
-
         efficientnet_index = i
         break
 
@@ -167,15 +152,12 @@ if efficientnet_index is None:
     )
 
 
-# EfficientNetの後ろにあるレイヤー
 classifier_layers = model.layers[
     efficientnet_index + 1:
 ]
 
 
-print(
-    "分類部分のレイヤー:"
-)
+print("分類部分のレイヤー:")
 
 for layer in classifier_layers:
 
@@ -185,119 +167,6 @@ for layer in classifier_layers:
     )
 
 print()
-
-
-# ============================================================
-# Grad-CAM計算
-# ============================================================
-
-def make_gradcam(
-    img_array,
-    class_index
-):
-
-    with tf.GradientTape() as tape:
-
-        # ----------------------------------------------------
-        # 1. EfficientNetのtop_convまで計算
-        # ----------------------------------------------------
-
-        conv_outputs = tf.keras.Model(
-            inputs=efficientnet.input,
-            outputs=last_conv_layer.output
-        )(
-            img_array,
-            training=False
-        )
-
-        # 勾配計算対象として明示的に監視
-        tape.watch(conv_outputs)
-
-        # ----------------------------------------------------
-        # 2. top_conv以降を計算
-        # ----------------------------------------------------
-
-        x = efficientnet_tail(
-            conv_outputs,
-            training=False
-        )
-
-        # ----------------------------------------------------
-        # 3. EfficientNet以降の分類層
-        # ----------------------------------------------------
-
-        for layer in classifier_layers:
-
-            x = layer(
-                x,
-                training=False
-            )
-
-        predictions = x
-
-        # 指定クラスの出力
-        class_output = predictions[
-            :,
-            class_index
-        ]
-
-    # --------------------------------------------------------
-    # 勾配を取得
-    # --------------------------------------------------------
-
-    grads = tape.gradient(
-        class_output,
-        conv_outputs
-    )
-
-    if grads is None:
-
-        raise ValueError(
-            "Grad-CAMの勾配を取得できませんでした。"
-        )
-
-    # --------------------------------------------------------
-    # 各チャンネルの重要度
-    # --------------------------------------------------------
-
-    pooled_grads = tf.reduce_mean(
-        grads,
-        axis=(0, 1, 2)
-    )
-
-    conv_outputs = conv_outputs[0]
-
-    # --------------------------------------------------------
-    # 特徴マップを重要度で重み付け
-    # --------------------------------------------------------
-
-    heatmap = tf.reduce_sum(
-        conv_outputs * pooled_grads,
-        axis=-1
-    )
-
-    # --------------------------------------------------------
-    # ReLU
-    # --------------------------------------------------------
-
-    heatmap = tf.maximum(
-        heatmap,
-        0
-    )
-
-    # --------------------------------------------------------
-    # 0～1に正規化
-    # --------------------------------------------------------
-
-    max_value = tf.reduce_max(
-        heatmap
-    )
-
-    if max_value > 0:
-
-        heatmap /= max_value
-
-    return heatmap.numpy()
 
 
 # ============================================================
@@ -321,18 +190,136 @@ def load_image(image_path):
         )
     )
 
+    # ========================================================
+    # 注意
+    #
+    # ここでは /255.0 を行わない
+    # ========================================================
+
     img_array = np.array(
         resized_image,
         dtype=np.float32
     )
 
-    # バッチ次元
     img_array = np.expand_dims(
         img_array,
         axis=0
     )
 
     return original_image, img_array
+
+
+# ============================================================
+# Grad-CAM
+# ============================================================
+
+def make_gradcam(
+    img_array,
+    class_index
+):
+
+    with tf.GradientTape() as tape:
+
+        # ----------------------------------------------------
+        # top_convまで
+        # ----------------------------------------------------
+
+        conv_outputs = conv_model(
+            img_array,
+            training=False
+        )
+
+        tape.watch(
+            conv_outputs
+        )
+
+        # ----------------------------------------------------
+        # EfficientNet後半
+        # ----------------------------------------------------
+
+        x = efficientnet_tail(
+            conv_outputs,
+            training=False
+        )
+
+        # ----------------------------------------------------
+        # 分類層
+        # ----------------------------------------------------
+
+        for layer in classifier_layers:
+
+            x = layer(
+                x,
+                training=False
+            )
+
+        predictions = x
+
+        class_output = predictions[
+            :,
+            class_index
+        ]
+
+    # --------------------------------------------------------
+    # 勾配取得
+    # --------------------------------------------------------
+
+    grads = tape.gradient(
+        class_output,
+        conv_outputs
+    )
+
+    if grads is None:
+
+        raise ValueError(
+            "Grad-CAMの勾配を取得できませんでした。"
+        )
+
+    # --------------------------------------------------------
+    # チャンネルごとの重要度
+    # --------------------------------------------------------
+
+    pooled_grads = tf.reduce_mean(
+        grads,
+        axis=(0, 1, 2)
+    )
+
+    conv_outputs = conv_outputs[0]
+
+    # --------------------------------------------------------
+    # 重み付け
+    # --------------------------------------------------------
+
+    heatmap = tf.reduce_sum(
+        conv_outputs * pooled_grads,
+        axis=-1
+    )
+
+    # --------------------------------------------------------
+    # ReLU
+    # --------------------------------------------------------
+
+    heatmap = tf.maximum(
+        heatmap,
+        0
+    )
+
+    # --------------------------------------------------------
+    # 0～1へ正規化
+    #
+    # これは「入力画像の正規化」ではなく、
+    # Grad-CAMのヒートマップを表示するための正規化。
+    # --------------------------------------------------------
+
+    max_value = tf.reduce_max(
+        heatmap
+    )
+
+    if max_value > 0:
+
+        heatmap /= max_value
+
+    return heatmap.numpy()
 
 
 # ============================================================
@@ -346,7 +333,7 @@ def save_gradcam(
 ):
 
     # --------------------------------------------------------
-    # ヒートマップを元画像サイズに拡大
+    # ヒートマップを元画像サイズへ
     # --------------------------------------------------------
 
     heatmap_image = Image.fromarray(
@@ -412,10 +399,47 @@ def save_gradcam(
     )
 
     output_image.save(
-        output_path,
-        "JPEG",
-        quality=95
+        output_path
     )
+
+
+# ============================================================
+# 入力フォルダの画像取得
+# ============================================================
+
+def get_image_files():
+
+    if not os.path.exists(INPUT_DIR):
+
+        raise FileNotFoundError(
+            f"入力フォルダがありません: {INPUT_DIR}"
+        )
+
+    image_files = []
+
+    for filename in os.listdir(INPUT_DIR):
+
+        filepath = os.path.join(
+            INPUT_DIR,
+            filename
+        )
+
+        if not os.path.isfile(filepath):
+            continue
+
+        if not filename.lower().endswith(
+            IMAGE_EXTENSIONS
+        ):
+            continue
+
+        image_files.append(
+            filepath
+        )
+
+    # ファイル名順に処理
+    image_files.sort()
+
+    return image_files
 
 
 # ============================================================
@@ -425,157 +449,189 @@ def save_gradcam(
 def main():
 
     # --------------------------------------------------------
-    # 入力画像検索
+    # 出力フォルダ作成
     # --------------------------------------------------------
 
-    input_path = find_input_image()
+    os.makedirs(
+        OUTPUT_DIR,
+        exist_ok=True
+    )
 
-    if input_path is None:
+
+    # --------------------------------------------------------
+    # 入力画像取得
+    # --------------------------------------------------------
+
+    image_files = get_image_files()
+
+    if len(image_files) == 0:
 
         print(
-            "エラー: input.jpg / input.png などの"
-            "入力画像が見つかりません。"
+            "inputフォルダに画像がありません。"
         )
-
-        print()
-
-        print(
-            "対応形式:"
-        )
-
-        for ext in IMAGE_EXTENSIONS:
-
-            print(
-                f"  input{ext}"
-            )
 
         return
 
 
     print(
-        "入力画像:",
-        input_path
+        f"処理対象画像: {len(image_files)}枚"
     )
 
     print()
 
 
     # --------------------------------------------------------
-    # 画像読み込み
+    # 全画像処理
     # --------------------------------------------------------
 
-    original_image, img_array = (
-        load_image(
-            input_path
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # 通常のモデル推論
-    # --------------------------------------------------------
-
-    predictions = model.predict(
-        img_array,
-        verbose=0
-    )
-
-    probabilities = predictions[0]
-
-    predicted_index = int(
-        np.argmax(
-            probabilities
-        )
-    )
-
-    predicted_class = (
-        CLASS_NAMES[
-            predicted_index
-        ]
-    )
-
-    confidence = float(
-        probabilities[
-            predicted_index
-        ]
-    )
-
-
-    # --------------------------------------------------------
-    # 推論結果
-    # --------------------------------------------------------
-
-    print(
-        "========== 推論結果 =========="
-    )
-
-    for i, class_name in enumerate(
-        CLASS_NAMES
+    for index, image_path in enumerate(
+        image_files,
+        start=1
     ):
 
-        print(
-            f"{class_name}: "
-            f"{probabilities[i]:.4f}"
-        )
+        try:
 
-    print()
+            print(
+                f"[{index}/{len(image_files)}] "
+                f"{os.path.basename(image_path)}"
+            )
 
-    print(
-        "予測:",
-        predicted_class
-    )
+            # ------------------------------------------------
+            # 画像読み込み
+            # ------------------------------------------------
 
-    print(
-        f"信頼度: {confidence:.4f}"
-    )
-
-    print()
-
-
-    # --------------------------------------------------------
-    # Grad-CAM
-    # --------------------------------------------------------
-
-    print(
-        "Grad-CAMを計算しています..."
-    )
-
-    heatmap = make_gradcam(
-        img_array,
-        predicted_index
-    )
+            original_image, img_array = (
+                load_image(
+                    image_path
+                )
+            )
 
 
-    # --------------------------------------------------------
-    # 保存
-    # --------------------------------------------------------
+            # ------------------------------------------------
+            # 推論
+            # ------------------------------------------------
 
-    save_gradcam(
-        original_image,
-        heatmap,
-        OUTPUT_IMAGE
-    )
+            predictions = model.predict(
+                img_array,
+                verbose=0
+            )
+
+            probabilities = predictions[0]
+
+            predicted_index = int(
+                np.argmax(
+                    probabilities
+                )
+            )
+
+            predicted_class = (
+                CLASS_NAMES[
+                    predicted_index
+                ]
+            )
+
+            confidence = float(
+                probabilities[
+                    predicted_index
+                ]
+            )
+
+
+            # ------------------------------------------------
+            # Grad-CAM
+            # ------------------------------------------------
+
+            heatmap = make_gradcam(
+                img_array,
+                predicted_index
+            )
+
+
+            # ------------------------------------------------
+            # ファイル名作成
+            # ------------------------------------------------
+
+            filename = os.path.basename(
+                image_path
+            )
+
+            name, extension = os.path.splitext(
+                filename
+            )
+
+            # 小数第1位
+            confidence_percent = (
+                confidence * 100
+            )
+
+            confidence_text = (
+                f"{confidence_percent:.1f}"
+            )
+
+            output_filename = (
+                f"{name}_"
+                f"{predicted_class}_"
+                f"{confidence_text}"
+                f"{extension}"
+            )
+
+            output_path = os.path.join(
+                OUTPUT_DIR,
+                output_filename
+            )
+
+
+            # ------------------------------------------------
+            # 保存
+            # ------------------------------------------------
+
+            save_gradcam(
+                original_image,
+                heatmap,
+                output_path
+            )
+
+
+            # ------------------------------------------------
+            # 結果表示
+            # ------------------------------------------------
+
+            print(
+                f"  → {predicted_class}"
+            )
+
+            print(
+                f"  → 信頼度: "
+                f"{confidence_percent:.1f}%"
+            )
+
+            print(
+                f"  → 保存: "
+                f"{output_filename}"
+            )
+
+            print()
+
+
+        except Exception as e:
+
+            print(
+                f"  ERROR: {e}"
+            )
+
+            print()
 
 
     # --------------------------------------------------------
     # 完了
     # --------------------------------------------------------
 
-    print()
-
+    print("=" * 60)
+    print("すべての処理が完了しました。")
     print(
-        "Grad-CAMの作成が完了しました。"
+        "出力先:",
+        os.path.abspath(OUTPUT_DIR)
     )
-
-    print(
-        "保存先:",
-        os.path.abspath(
-            OUTPUT_IMAGE
-        )
-    )
-
-    print()
-
     print("=" * 60)
 
 

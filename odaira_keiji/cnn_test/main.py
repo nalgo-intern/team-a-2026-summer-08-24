@@ -77,7 +77,7 @@ def preprocess_image(image_path):
     )
 
     # 0～1に正規化
-    #image_array = image_array / 255.0
+    #image_array = image_array / 255.0 すでに正規化しているのでこの行は不要
 
     # バッチ次元を追加
     #
