@@ -1,5 +1,4 @@
 import os
-import random
 import csv
 import shutil
 import numpy as np
@@ -27,9 +26,6 @@ ROTTEN_DIR = os.path.join(
     TEST_DIR,
     "Rotten"
 )
-
-# 各クラスからランダムに選択する枚数
-TEST_IMAGE_COUNT = 500
 
 # 結果ファイル
 RESULT_TXT_PATH = "result.txt"
@@ -422,6 +418,7 @@ def copy_result_image(
         destination_path
     )
 
+
 # ============================================================
 # CSV保存
 # ============================================================
@@ -591,7 +588,7 @@ def save_txt(
         )
 
         f.write(
-            "テスト方法: Fresh / Rottenからランダム選択\n"
+            "テスト方法: testフォルダ内の全画像を評価\n"
         )
 
         f.write(
@@ -680,10 +677,18 @@ def save_txt(
             f"{fresh_total - fresh_correct}\n"
         )
 
-        f.write(
-            f"正解率: "
-            f"{fresh_accuracy * 100:.4f}%\n"
-        )
+        if fresh_total > 0:
+
+            f.write(
+                f"正解率: "
+                f"{fresh_accuracy * 100:.4f}%\n"
+            )
+
+        else:
+
+            f.write(
+                "正解率: 0.0000%\n"
+            )
 
         f.write("\n")
 
@@ -718,10 +723,18 @@ def save_txt(
             f"{rotten_total - rotten_correct}\n"
         )
 
-        f.write(
-            f"正解率: "
-            f"{rotten_accuracy * 100:.4f}%\n"
-        )
+        if rotten_total > 0:
+
+            f.write(
+                f"正解率: "
+                f"{rotten_accuracy * 100:.4f}%\n"
+            )
+
+        else:
+
+            f.write(
+                "正解率: 0.0000%\n"
+            )
 
         f.write("\n")
 
@@ -857,49 +870,26 @@ def main():
         )
 
         # ====================================================
-        # 3. 150枚以上あるか確認
+        # 3. 画像が存在するか確認
         # ====================================================
 
-        if len(
-            fresh_images
-        ) < TEST_IMAGE_COUNT:
+        if len(fresh_images) == 0:
 
             raise ValueError(
-                "Fresh画像が150枚未満です。"
+                "Freshフォルダに画像がありません。"
             )
 
-        if len(
-            rotten_images
-        ) < TEST_IMAGE_COUNT:
+        if len(rotten_images) == 0:
 
             raise ValueError(
-                "Rotten画像が150枚未満です。"
+                "Rottenフォルダに画像がありません。"
             )
 
         # ====================================================
-        # 4. Freshからランダムに150枚選択
+        # 4. 評価データ作成
         #
-        # 固定シードは使用しない
-        # ====================================================
-
-        selected_fresh = random.sample(
-            fresh_images,
-            TEST_IMAGE_COUNT
-        )
-
-        # ====================================================
-        # 5. Rottenからランダムに150枚選択
-        #
-        # 固定シードは使用しない
-        # ====================================================
-
-        selected_rotten = random.sample(
-            rotten_images,
-            TEST_IMAGE_COUNT
-        )
-
-        # ====================================================
-        # 6. 評価データ作成
+        # ランダム選択は行わず、
+        # Fresh / Rottenの全画像を使用する
         #
         # Fresh = 0
         # Rotten = 1
@@ -907,7 +897,7 @@ def main():
 
         test_data = []
 
-        for image_path in selected_fresh:
+        for image_path in fresh_images:
 
             test_data.append(
                 (
@@ -916,7 +906,7 @@ def main():
                 )
             )
 
-        for image_path in selected_rotten:
+        for image_path in rotten_images:
 
             test_data.append(
                 (
@@ -926,7 +916,7 @@ def main():
             )
 
         # ====================================================
-        # 7. 保存先フォルダ作成
+        # 5. 保存先フォルダ作成
         # ====================================================
 
         create_output_directories()
@@ -937,21 +927,23 @@ def main():
         )
 
         print(
-            f"正解画像  : {os.path.abspath(CORRECT_DIR)}"
+            f"正解画像  : "
+            f"{os.path.abspath(CORRECT_DIR)}"
         )
 
         print(
-            f"不正解画像: {os.path.abspath(FALSE_DIR)}"
+            f"不正解画像: "
+            f"{os.path.abspath(FALSE_DIR)}"
         )
 
         # ====================================================
-        # 8. モデル読み込み
+        # 6. モデル読み込み
         # ====================================================
 
         model = load_model()
 
         # ====================================================
-        # 9. 集計変数
+        # 7. 集計変数
         # ====================================================
 
         total_count = len(
@@ -983,7 +975,7 @@ def main():
         results = []
 
         # ====================================================
-        # 10. 評価開始
+        # 8. 評価開始
         # ====================================================
 
         print()
@@ -992,7 +984,7 @@ def main():
         )
 
         print(
-            "ランダムテスト開始"
+            "全画像テスト開始"
         )
 
         print(
@@ -1000,11 +992,11 @@ def main():
         )
 
         print(
-            f"Fresh : {TEST_IMAGE_COUNT}枚"
+            f"Fresh : {len(fresh_images)}枚"
         )
 
         print(
-            f"Rotten: {TEST_IMAGE_COUNT}枚"
+            f"Rotten: {len(rotten_images)}枚"
         )
 
         print(
@@ -1014,7 +1006,7 @@ def main():
         print()
 
         # ====================================================
-        # 11. 画像を1枚ずつ評価
+        # 9. 画像を1枚ずつ評価
         # ====================================================
 
         for index, (
@@ -1113,7 +1105,7 @@ def main():
             # =================================================
 
             copy_result_image(
-                 image_path,
+                image_path,
                 true_class,
                 correct,
                 confidence
@@ -1165,7 +1157,7 @@ def main():
             # ------------------------------------------------
 
             print(
-                f"[{index:3d}/{total_count}] "
+                f"[{index:4d}/{total_count}] "
                 f"{'正解' if correct else '不正解':4s} | "
                 f"正解={true_class:6s} | "
                 f"判定={predicted_class:6s} | "
@@ -1174,7 +1166,7 @@ def main():
             )
 
         # ====================================================
-        # 12. 正解率計算
+        # 10. 正解率計算
         # ====================================================
 
         accuracy = (
@@ -1182,18 +1174,30 @@ def main():
             total_count
         )
 
-        fresh_accuracy = (
-            fresh_correct /
-            fresh_total
-        )
+        if fresh_total > 0:
 
-        rotten_accuracy = (
-            rotten_correct /
-            rotten_total
-        )
+            fresh_accuracy = (
+                fresh_correct /
+                fresh_total
+            )
+
+        else:
+
+            fresh_accuracy = 0.0
+
+        if rotten_total > 0:
+
+            rotten_accuracy = (
+                rotten_correct /
+                rotten_total
+            )
+
+        else:
+
+            rotten_accuracy = 0.0
 
         # ====================================================
-        # 13. 信頼度平均
+        # 11. 信頼度平均
         # ====================================================
 
         average_confidence = float(
@@ -1231,7 +1235,7 @@ def main():
             incorrect_average_confidence = 0.0
 
         # ====================================================
-        # 14. 結果表示
+        # 12. 結果表示
         # ====================================================
 
         print()
@@ -1327,7 +1331,7 @@ def main():
         )
 
         # ====================================================
-        # 15. result.txt保存
+        # 13. result.txt保存
         # ====================================================
 
         save_txt(
@@ -1353,7 +1357,7 @@ def main():
         )
 
         # ====================================================
-        # 16. result_full.csv保存
+        # 14. result_full.csv保存
         # ====================================================
 
         save_csv(
@@ -1361,7 +1365,7 @@ def main():
         )
 
         # ====================================================
-        # 17. 完了
+        # 15. 完了
         # ====================================================
 
         print()
@@ -1399,7 +1403,6 @@ def main():
                 FALSE_DIR
             )
         )
-
 
     except Exception as e:
 
